@@ -1,0 +1,77 @@
+---
+
+# Create Staging Folder
+- name: Create Staging Folder
+  file:
+    path: /build-artifacts/
+    state: directory
+
+- name: checking for existing installed nessus agent
+  stat:
+    path: '{{ nessuscli_bin_path }}'
+  register: agent
+
+- debug:
+    msg: "nessus agent not found (start installing)"
+  when: not agent.stat.exists
+
+- debug:
+    msg: "nessus agent found (skip installing)"
+  when: agent.stat.exists
+
+- name: Copy installer files to remote server
+  copy:
+    src: "{{ role_path }}/files/{{ nessus_installer_file[package_type] }}"
+    dest: "/build-artifacts/{{ nessus_installer_file[package_type] }}"
+  when: not agent.stat.exists
+
+- name: install nessus agent
+  apt:
+    deb: "/build-artifacts/{{ nessus_installer_file[package_type] }}"
+    state: present
+  register: install_nessus_agent
+  when: not agent.stat.exists
+
+#--- Run nessus agent as service
+- name: ensure required services are started
+  service:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  with_items:
+    - nessusagent
+
+#--- Link nessus agent to nessus server
+
+- name: check nessus agent link status at begin
+  command: '{{ nessuscli_bin_path }} agent status'
+  become: yes
+  ignore_errors: yes # adding ignore_errors since this will fail until you have an environment with connectivity to a nessus master host
+  register: nessus_agent_link_before
+
+- debug:
+    msg: "At begin, nessus agent NOT linked"
+  when: '"Link status: Not linked to a manager" in nessus_agent_link_before.stdout'
+
+- debug:
+    msg: "At begin, nessus agent STILL linked"
+  when: '"Link status: Not linked to a manager" not in nessus_agent_link_before.stdout'
+
+- name: link nessus agent
+  shell: "{{ nessuscli_bin_path }} agent link --key={{ nessus_agent_key }} --host={{ nessus_server_url }} --port={{ nessus_server_port }}"
+  when: '"Link status: Not linked to a manager" in nessus_agent_link_before.stdout and not ami_build_flag'
+
+- name: check nessus agent link status at end
+  command: '{{ nessuscli_bin_path }} agent status'
+  become: yes
+  ignore_errors: yes # adding ignore_errors since this will fail until you have an environment with connectivity to a nessus master host
+  register: nessus_agent_link_after
+  when: not ami_build_flag
+
+- debug:
+    msg: "At the end, nessus agent NOT linked"
+  when: 'not ami_build_flag and "Link status: Not linked to a manager" in nessus_agent_link_after.stdout'
+
+- debug:
+    msg: "At the end, nessus agent STILL linked"
+  when: 'not ami_build_flag and "Link status: Not linked to a manager" not in nessus_agent_link_after.stdout'

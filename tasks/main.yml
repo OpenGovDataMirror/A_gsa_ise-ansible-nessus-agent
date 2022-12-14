@@ -1,0 +1,58 @@
+---
+
+- name: RedHat
+  set_fact:
+    package_folder: rpm/rhel
+    package_type: rpm
+  when: ansible_facts['distribution']|lower == 'redhat' 
+
+- name: Amazon
+  set_fact:
+    package_type: rpm
+    package_folder: rpm/amazon
+  when: ansible_facts['distribution']|lower == 'amazon' 
+
+- name: Ubuntu and debian
+  set_fact:
+    package_type: deb
+    package_folder: deb
+  when: ansible_facts['os_family']|lower == 'debian'
+
+- name: Windows Server and Workstation
+  set_fact:
+    package_type: win
+    package_folder: win
+  when: ansible_facts['os_family']|lower == 'windows'
+
+- name: Check if installer exists
+  stat:
+    path: "{{ role_path }}/files/{{ nessus_installer_file[package_type] }}"
+  register: stat_result
+  delegate_to: localhost
+  become: false
+
+- name: Download Binaries from S3 
+  aws_s3:
+    bucket: sectools-installation-artifacts
+    object: "{{ package_folder }}/{{ nessus_installer_file[package_type] }}"
+    dest: "{{ role_path }}/files/{{ nessus_installer_file[package_type] }}"
+    mode: get
+    aws_access_key: "{{ access_key }}"
+    aws_secret_key: "{{ secret_key }}"
+    aws_security_token: "{{ session_token }}"
+  delegate_to: localhost
+  when: not stat_result.stat.exists
+  become: false
+
+- name: RedHat
+  include_tasks: redhat.yml
+  when: ansible_facts['os_family']|lower == 'redhat'
+
+- name: Ubuntu and debian
+  include_tasks: ubuntu.yml
+  when: ansible_facts['os_family']|lower == 'debian'
+
+- name: Windows Server and Workstation
+  include_tasks: win.yml
+  when: ansible_facts['os_family']|lower == 'windows'
+  

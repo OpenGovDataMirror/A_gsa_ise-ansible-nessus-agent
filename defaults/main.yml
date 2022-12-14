@@ -1,0 +1,21 @@
+---
+# default variable values
+
+# universal
+nessus_agent_key: ""
+nessus_server_url: ""
+nessus_server_port: 
+
+# Paths and buckets
+nessuscli_bin_path: "/opt/nessus_agent/sbin/nessuscli" # default install directory
+nessus_installer_file: 
+  win: nessus-agent.msi
+  rpm: nessus-agent.rpm
+  deb: nessus-agent.deb
+
+#Set this to true when this role is used to build AMI  
+ami_build_flag: False
+secret_text:
+access_key:
+secret_key:
+session_token:
